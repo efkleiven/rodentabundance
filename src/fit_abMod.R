@@ -7,8 +7,6 @@ library(runjags)
 library(rjags)
 library(coda)
 
-#Hiii
-
 rm(list = ls())
 
 modname = ""
