@@ -153,7 +153,7 @@ n.df <- data.frame(date = covs$date,
                           Nest.sup = rep(n.qu[3,]))
 
 ggplot(n.df)+
-  geom_line(data = detHist, aes(x=date, y = Microtus, col = station))+
+ # geom_line(data = detHist, aes(x=date, y = Microtus, col = station))+
   geom_line(aes(x=date, y = Nest.med), col = "black")+
   geom_ribbon(aes(x = date, ymin = Nest.inf, ymax = Nest.sup),
               fill = "black", alpha = 0.5)+
