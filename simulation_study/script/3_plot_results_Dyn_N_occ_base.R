@@ -1,4 +1,4 @@
-load("bestandsindekser/script/sim_output_base.RData")
+load("simulation_study/script/sim_output_base.RData")
 
 # true values
  gam = 1
@@ -7,7 +7,8 @@ load("bestandsindekser/script/sim_output_base.RData")
  p = 0.3
 
  mod_base[1,1:20]
-par(mfrow=c(2,2))
+
+ par(mfrow=c(2,2))
 boxplot(mod_base[,"gamma"], ylim=c(0.4,1.5),  main="gamma")
 abline(h=gam, col=2, lwd=2)
 #abline(h=gam/2, lty=2, col=2, lwd=1)

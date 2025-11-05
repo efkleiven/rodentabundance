@@ -1,4 +1,4 @@
-load("bestandsindekser/script/sim_output_v3.RData")
+load("simulation_study/script/sim_output_v3.RData")
 
 # true values
  gam = 1
