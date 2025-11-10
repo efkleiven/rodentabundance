@@ -90,15 +90,15 @@ Mod <- run.jags(model = "simulation_study/script/0_abMod_jags_seasonalgains.R",
                 data = data.list,
                 n.chains = 2,
                 inits = inits,
-                adapt = 1000,
-                burnin = 1000,
-                sample = 1000,
-                thin = 2,
+                adapt = 5000,
+                burnin = 5000,
+                sample = 10000,
+                thin = 20,
                 method = "parallel")
 
 mod <- as.matrix(as.mcmc.list(Mod))
 
-save(mod, file="simulation_study/output/sim_output_seasonalgains.RData")
+save(mod, file="simulation_study/output/sim_output_seasonalgains_v2.RData")
 
 #boxplot(exp(mod[, "gam"]))
 #boxplot(mod[, "omega"])
