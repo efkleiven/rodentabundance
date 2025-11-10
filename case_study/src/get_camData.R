@@ -191,12 +191,3 @@ saveRDS(pors_data, "case_study/data/camData_pors.rds")
 
 
 
-
-
-
-
-#0=bad quality, 1=empty, 2=bird, 3=vole, 4=least_weasel, 5=lemming, 6=shrew, 7=stoat, 
-# select images classified with more than 90% certainty
-df2$answer <- ifelse(df2$confidence1>0.90,df2$guess1,0)
-
-
