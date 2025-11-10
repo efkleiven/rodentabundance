@@ -23,7 +23,7 @@ while the biological process model writes
 
 $$ N_{t} = S_{t-1} + G_{t-1}$$  
 $$ S_{t-1} \sim \mathcal{B}(N_{t-1},\omega)$$
-$$G_{t-1} \sim \mathcal{P}(\gamma_{t-1})$$
+$$ G_{t-1} \sim \mathcal{P}(\gamma_{t-1})$$
 
 Because N is defined over all sampling sites (within a region or block) it is assumed that all individuals have equal access to all cameras traps. In reality they likely do not. 
 This might lead to the true N being larger than the one estimated here, a little underestimation of true pop size. It does solve the problem that individuals might move from one sampling site to the next between primary occasions though.
@@ -43,3 +43,12 @@ $$ G_{t-1,m} \sim \mathcal{P}(\gamma_{t-1}) $$
 Because $N_m$ is sampling site $m$ (camera)-specific and a sum has to be taken so that $N_t = \sum_{m=1}^{M} N_{m,t}$, it is assumed that individuals do not flow from one sampling site to the next, within a secondary occasion. In reality they might from time to time. This might lead to a true N lower than the one being estimated, 
 hence some overestimation of true pop size. They might also move from site to site, from one primary occasion to the next, which the biological process model does not take into account (assumes independent dynamics per site). 
 
+### How could we introduce heterogeneity between individuals? 
+
+(Should we want to do that). Let's drop indices and consider a simplified detection model at a given site, primary occasion, and secondary occasion. We just sketch some ideas
+
+$$ Y \sim \mathcal{B}(p), \ p  = 1 - (1-\theta)^N $$ 
+
+This assumes individuals have all the same $\theta$. But let's assume there is variation between thetas, for instance through a beta distribution. If $\theta \sim Beta(a,b)$ then $1-\theta \sim Beta(b,a)$. And then one would need to find the distribution of $(1-\theta)^N$ for independently drawn Beta distribution (one for each individual), and perhaps integrate once more. 
+
+Maybe some colleagues already working with the Royle-Nichols model have found simpler ways to do this. 
