@@ -100,4 +100,103 @@ valdres_data <- valdres_data %>%
 
 ct_data_allsites <- rbind(valdres_data, hakoy_data)
 
-# saveRDS(ct_data_allsites, "data/camData.rds")
+saveRDS(ct_data_allsites, "data/camData.rds")
+
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+################################### Porsanger ###################################
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+
+getwd()
+
+porsanger_years <- dir("case_study/data/Porsanger/automatic_classification")
+porsanger_path <- "case_study/data/Porsanger/automatic_classification"
+porsanger_meta_path <- "case_study/data/Porsanger/image_metadata"
+
+cat_to_species <- data.frame(answer = 0:7,
+                               species = c("bad.quality","empty","bird","vole","least_weasel",
+                                           "lemming","shrew","stoat"))
+
+#load camera data
+# Get all .txt file paths from all subfolders
+cam_files <- list.files(
+  path = file.path(porsanger_path, porsanger_years),
+  pattern = "\\.txt$",        # only .txt files
+  full.names = TRUE,          # return full paths
+  recursive = TRUE            # include files in nested folders
+)
+
+# Check what files were found
+print(cam_files)
+
+# Read all .txt files into a list
+library(readr)
+cam_list <- lapply(cam_files, read_delim)
+
+# (optional) Combine into one big data frame (if structure is identical)
+cam_data <- dplyr::bind_rows(cam_list, .id = "source_file")
+
+#load metadata
+# Get all .txt file paths from all subfolders
+meta_files <- list.files(
+  path = file.path(porsanger_meta_path, porsanger_years),
+  pattern = "\\.txt$",        # only .txt files
+  full.names = TRUE,          # return full paths
+  recursive = TRUE            # include files in nested folders
+)
+
+# Check what files were found
+print(meta_files)
+
+# Read all .txt files into a list
+meta_list <- lapply(meta_files, read_delim, delim = "\t")
+
+# (optional) Combine into one big data frame (if structure is identical)
+meta_data <- dplyr::bind_rows(meta_list, .id = "source_file") %>%
+  mutate(filename = NewFileName,
+         datetime = DateTimeOriginal,
+         temp = AmbientTemperature,
+         trigger = TriggerMode) %>%
+  select(filename, datetime, temp, trigger)
+
+
+pors_data <- left_join(cam_data, meta_data, by = "filename")%>%
+  arrange(site, datetime)
+
+pors_data <- pors_data %>%
+  mutate(answer = as.numeric(confidence1 > 0.95) * guess1)%>%
+  left_join(cat_to_species, by = "answer")
+
+pors_data <- pors_data %>%
+  mutate(datetime = as_datetime(datetime),
+         date = date(datetime), 
+         time = format(datetime, format="%H:%M:%S")) 
+
+pics_to_keep <- pors_data %>%
+  group_by(site)%>%
+  mutate(dt = as.numeric(difftime(datetime, lag(datetime, 1), units = "secs")),
+         event = cumsum(dt>10|is.na(dt)))%>%
+  group_by(site, event)%>% 
+  summarise(filename = filename[which.max(confidence1)])%>%
+  .$filename
+
+pors_data <- pors_data %>%
+  filter(filename %in% pics_to_keep)
+
+pors_data <- pors_data %>%
+  select(site, year, trigger, datetime, date, time, temp, species)
+
+#
+saveRDS(pors_data, "case_study/data/camData_pors.rds")
+
+
+
+
+
+
+
+#0=bad quality, 1=empty, 2=bird, 3=vole, 4=least_weasel, 5=lemming, 6=shrew, 7=stoat, 
+# select images classified with more than 90% certainty
+df2$answer <- ifelse(df2$confidence1>0.90,df2$guess1,0)
+
+
