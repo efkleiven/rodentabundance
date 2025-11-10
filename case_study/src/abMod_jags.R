@@ -23,7 +23,8 @@ model{
   ## LINEAR PREDICTORS ## 
   for(t in 1:T){
     for(m in 1:M){
-      logit(rho[m,t])  <- a_RE_stat[m] + inprod(a, rho_covs[t,])
+      # logit(rho[m,t])  <- a_RE_stat[m] + inprod(a, rho_covs[t,])
+      logit(rho[m,t])  <- inprod(a, rho_covs[t,])
     }
     gam[t] <- exp(inprod(b, gam_covs[t,]))
     tau[t] <- ilogit(inprod(d, tau_covs[t,]))
@@ -39,9 +40,9 @@ model{
   for(cov in 1:Ncov_tau){
     d[cov] ~ dlogis(0,1)
   }
-  for(m in 1:M){
-    a_RE_stat[m] ~ dlogis(0,1)
-  }
+  # for(m in 1:M){
+  #   a_RE_stat[m] ~ dlogis(0,1)
+  # }
   lam ~ dunif(1,100)
   
 

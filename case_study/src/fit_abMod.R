@@ -6,21 +6,23 @@ library(LaplacesDemon)
 library(runjags)
 library(rjags)
 library(coda)
+library(patchwork)
 
 rm(list = ls())
 
 modname = ""
 K = 7
-SITE = "Hakoya"
+# SITE = "Hakoya"
 
 ### 1. Load Data ---------------------------------------------------------------
 
-ct_data.filename <- "data/camData.rds"
-snow_data.filename <- "data/snowData.rds"
+ct_data.filename <- "case_study/data/camData_pors.rds"
+cmr_data.filename <- "case_study/data/Porsanger/cmr/porsanger_mus_reg_2025.csv"
+# snow_data.filename <- "data/snowData.rds"
 
 ct_data <- readRDS(ct_data.filename) %>%
-  filter(site == SITE) %>%
-  left_join(readRDS(snow_data.filename), by = c("station", "date")) %>%
+  # filter(site == SITE) %>%
+  # left_join(readRDS(snow_data.filename), by = c("station", "date")) %>%
   filter(year >= 2017)
 
 day.orig <- min(ct_data$date)
@@ -30,22 +32,28 @@ ct_data <- ct_data %>%
          t = (jday - 1) %/% K + 1)
 
 detHist <- ct_data %>%
-  group_by(station, t, date, jday) %>% 
-  summarize(Microtus = as.numeric(any(species == "microtus")))
+  group_by(site, t, date, jday) %>% 
+  summarize(vole = as.numeric(any(species == "vole")))
+
+countHist <- ct_data %>%
+  mutate(period = jday %/% 5) %>%
+  group_by(period, jday) %>% 
+  summarize(t = t[1], date = date[1],
+            volecount = sum(as.numeric(species == "vole")))
 
 ### 2. Get Data Matrix ---------------------------------------------------------
 
 y.df <- detHist%>%
-  group_by(station, t) %>%
+  group_by(site, t) %>%
   mutate(k = 1:n()) %>% 
-  pivot_wider(names_from = station, values_from = Microtus) 
+  pivot_wider(names_from = site, values_from = vole) 
 
-M <- length(unique(detHist$station))
+M <- length(unique(detHist$site))
 T <- max(detHist$t)
 
 y.mat <- array(NA, dim = c(M, T, K))
 for(i in 1:nrow(y.df)){
-  y.mat[, y.df$t[i], y.df$k[i]] <- t(y.df[i,unique(detHist$station)]) + 1
+  y.mat[, y.df$t[i], y.df$k[i]] <- t(y.df[i,unique(detHist$site)]) + 1
 }
 
 ### 3. Get covariates ----------------------------------------------------------
@@ -54,15 +62,14 @@ covs <- ct_data %>%
   group_by(t) %>%
   summarize(year = year[1],
             date = date[1],
-            yday = yday(date),
-            yday2 = yday**2,
-            cos1 = cos(2*pi*yday/365),
-            cos2 = cos(4*pi*yday/365),
-            sin1 = sin(2*pi*yday/365),
-            sin2 = sin(4*pi*yday/365),
-            int = 1, 
-            zeros = 0,
-            SNOW = as.numeric(any(SNOW,  na.rm = T))) %>%
+            # yday = yday(date),
+            # yday2 = yday**2,
+            # cos1 = cos(2*pi*yday/365),
+            # cos2 = cos(4*pi*yday/365),
+            # sin1 = sin(2*pi*yday/365),
+            # sin2 = sin(4*pi*yday/365),
+            # SNOW = as.numeric(any(SNOW,  na.rm = T)),
+            int = 1) %>%
   mutate(breeding = as.numeric(month(date) %in% 5:9)) %>%
   left_join(data.frame(t = 1:T), .)
 
@@ -72,13 +79,13 @@ Nyears <- length(unique(years))
 ### 4. Prepare to run the model ------------------------------------------------
 
 # individual detection
-rho_covs <- as.matrix(covs[, c("SNOW")])
+rho_covs <- as.matrix(covs[, c("int")])
 
 # natality
 gam_covs <- as.matrix(covs[, c("int")])
 
 #survival rate
-tau_covs <- as.matrix(covs[, c("int", "yday", "yday2")])
+tau_covs <- as.matrix(covs[, c("int")])
 
 rho_covs[is.na(rho_covs)] <- 0 
 gam_covs[is.na(gam_covs)] <- 0 
@@ -106,7 +113,7 @@ inits <- foreach(ch = 1:NCHAINS) %do%{
        a_RE_stat = rnorm(M, 0, 0))
 }
 
-Mod <- run.jags(model = "src/abMod_jags.R",
+Mod <- run.jags(model = "case_study/src/abMod_jags.R",
               monitor = c("a", "b", "d", "lam",
                           "a_RE_stat",
                           "n", "G", "S",
@@ -161,61 +168,89 @@ n.df <- data.frame(date = covs$date,
          month = month(date))
 
 ggplot(n.df)+
-  geom_line(data = detHist %>% group_by(t, station) %>% summarize(Microtus = sum(Microtus), date = date[1]),
-            aes(x=date, y = Microtus, col = station))+
+  geom_line(data = detHist %>% group_by(t, site) %>% summarize(vole = sum(vole), date = date[1]),
+            aes(x=date, y = vole, col = site))+
   geom_line(aes(x=date, y = Nest.med), col = "black")+
   geom_ribbon(aes(x = date, ymin = Nest.inf, ymax = Nest.sup),
               fill = "black", alpha = 0.5)+
-  geom_rect(data = covs, aes(xmin = date, xmax = lag(date, 1), 
-                             ymin = -1.5, ymax = -.5, fill = factor(SNOW)))+
-  scale_fill_manual(values = c("orange", "lightblue"), name = "Snow", labels = c("NO", "YES"))+
+  # geom_rect(data = covs, aes(xmin = date, xmax = lag(date, 1), 
+  #                            ymin = -1.5, ymax = -.5, fill = factor(SNOW)))+
+  # scale_fill_manual(values = c("orange", "lightblue"), name = "Snow", labels = c("NO", "YES"))+
   scale_x_date(breaks = "6 months")+
   theme_bw()
 
+cmr_data <- read.csv(cmr_data.filename) %>%
+  filter(year > 2017) %>%
+  mutate(date = ifelse(seas == "FALL", "-09-15", "-06-15")) %>%
+  mutate(date = as_date(paste0(year, date)))
 
-date.df <- data.frame(date = seq(as.Date("2019/1/1"), as.Date("2019/12/31"), by = "day"),
-                      int = 1,
-                      yday = 1:365) %>%
-  mutate(yday2 = yday ** 2)
-
-date.df$omega <- M.mat[, grep("d\\[", colnames(M.mat_))]%>%
-  apply(2, median) %*% t(as.matrix(date.df[,c("int", "yday", "yday2")])) %>%
-  c %>%
-  invlogit
-
-date.df %>% 
-ggplot()+
-  geom_line(aes(x = date, y = omega)) +
-  ggtitle("survival rate") +
+p1 <- ggplot(n.df)+
+  geom_point(data = cmr_data, aes(x = date, y = PorsSum/7), col = "red")+
+  geom_line(data = cmr_data, aes(x = date, y = PorsSum/7), col = "red")+
+  geom_line(aes(x=date, y = Nest.med), col = "blue")+
+  geom_ribbon(aes(x = date, ymin = Nest.inf, ymax = Nest.sup),
+              fill = "lightblue", alpha = 0.5)+
+  scale_x_date(breaks = "6 months")+
+  scale_y_continuous(name = "RN estimate",
+                     sec.axis = sec_axis( transform=~.*7, name="CMR estimate"))+
   theme_bw()
 
-a_int <- M.mat[, grep("a_RE_stat\\[", colnames(M.mat_))]%>%
-  apply(1, mean)
-a_SNOW <- M.mat[,"a"]
-
-a.df <- data.frame(NOSNOW = invlogit(a_int),
-                   SNOW = invlogit(a_int+a_SNOW))
-
-ggplot(a.df)+
-  geom_violin(aes(x = "NOSNOW", y = NOSNOW), fill = "lightgreen")+
-  geom_violin(aes(x = "SNOW", y = SNOW), fill = "lightblue")+
-  geom_point(aes(x = "NOSNOW", y = NOSNOW), col = "red", size = .5)+
-  geom_point(aes(x = "SNOW", y = SNOW), col = "red", size = .5)+
-  geom_segment(aes(x = "NOSNOW", xend = "SNOW", y = NOSNOW, yend = SNOW), size = .1) +
-  ggtitle("individual detection probability") +
+p2 <- ggplot(countHist)+
+  geom_point(data = cmr_data, aes(x = date, y = PorsSum/2), col = "red")+
+  geom_line(data = cmr_data, aes(x = date, y = PorsSum/2), col = "red")+
+  geom_line(aes(x=date, y = volecount))+
+  scale_x_date(breaks = "6 months")+
+  scale_y_continuous(name = "CT estimate",
+                     sec.axis = sec_axis( transform=~.*2, name="CMR estimate"))+
   theme_bw()
 
-d_int <- M.mat[, "d[1]"]
-d_SNOW <- M.mat[,"d[2]"]
+p1/p2
 
-d.df <- data.frame(NOSNOW = invlogit(d_int),
-                   SNOW = invlogit(d_int+d_SNOW))
+ggsave("case_study/plots/CMR_vs_RN_vs_CT.png",  width = 29.7, height = 29.7, unit = "cm")
 
-ggplot(d.df)+
-  geom_violin(aes(x = "NOSNOW", y = NOSNOW), fill = "lightgreen")+
-  geom_violin(aes(x = "SNOW", y = SNOW), fill = "lightblue")+
-  geom_point(aes(x = "NOSNOW", y = NOSNOW), col = "red", size = .5)+
-  geom_point(aes(x = "SNOW", y = SNOW), col = "red", size = .5)+
-  geom_segment(aes(x = "NOSNOW", xend = "SNOW", y = NOSNOW, yend = SNOW), size = .1) +
-  ggtitle("survival rate") +
-  theme_bw()
+# date.df <- data.frame(date = seq(as.Date("2019/1/1"), as.Date("2019/12/31"), by = "day"),
+#                       int = 1,
+#                       yday = 1:365) %>%
+#   mutate(yday2 = yday ** 2)
+# 
+# date.df$omega <- M.mat[, grep("d\\[", colnames(M.mat_))]%>%
+#   apply(2, median) %*% t(as.matrix(date.df[,c("int", "yday", "yday2")])) %>%
+#   c %>%
+#   invlogit
+# 
+# date.df %>% 
+# ggplot()+
+#   geom_line(aes(x = date, y = omega)) +
+#   ggtitle("survival rate") +
+#   theme_bw()
+# 
+# a_int <- M.mat[, grep("a_RE_stat\\[", colnames(M.mat_))]%>%
+#   apply(1, mean)
+# a_SNOW <- M.mat[,"a"]
+# 
+# a.df <- data.frame(NOSNOW = invlogit(a_int),
+#                    SNOW = invlogit(a_int+a_SNOW))
+# 
+# ggplot(a.df)+
+#   geom_violin(aes(x = "NOSNOW", y = NOSNOW), fill = "lightgreen")+
+#   geom_violin(aes(x = "SNOW", y = SNOW), fill = "lightblue")+
+#   geom_point(aes(x = "NOSNOW", y = NOSNOW), col = "red", size = .5)+
+#   geom_point(aes(x = "SNOW", y = SNOW), col = "red", size = .5)+
+#   geom_segment(aes(x = "NOSNOW", xend = "SNOW", y = NOSNOW, yend = SNOW), size = .1) +
+#   ggtitle("individual detection probability") +
+#   theme_bw()
+# 
+# d_int <- M.mat[, "d[1]"]
+# d_SNOW <- M.mat[,"d[2]"]
+# 
+# d.df <- data.frame(NOSNOW = invlogit(d_int),
+#                    SNOW = invlogit(d_int+d_SNOW))
+# 
+# ggplot(d.df)+
+#   geom_violin(aes(x = "NOSNOW", y = NOSNOW), fill = "lightgreen")+
+#   geom_violin(aes(x = "SNOW", y = SNOW), fill = "lightblue")+
+#   geom_point(aes(x = "NOSNOW", y = NOSNOW), col = "red", size = .5)+
+#   geom_point(aes(x = "SNOW", y = SNOW), col = "red", size = .5)+
+#   geom_segment(aes(x = "NOSNOW", xend = "SNOW", y = NOSNOW, yend = SNOW), size = .1) +
+#   ggtitle("survival rate") +
+#   theme_bw()
