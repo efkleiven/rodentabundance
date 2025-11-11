@@ -17,7 +17,7 @@ The equivalent of blocks in that code might be regions.
 
 For the moment we consider one species so we drop index $i$ and one region / pop so we drop index $r$ (the code considers $r \in \{1,..., R \}$ though. The detection submodel writes
 
-$$ Y_{m,t,k} \sim \mathcal{B}(p_{m,t,k}), \ p_{m,t,k}  = 1 - (1-\theta_{m,t,k})^{N_t}$$ 
+$$ Y_{m,t,k} \sim \mathcal{B}(p_{m,t,k}), \ p_{m,t,k}  = 1 - (1-\theta_{m,t})^{N_t}$$ 
 
 while the biological process model writes
 
@@ -49,6 +49,4 @@ hence some overestimation of true pop size. They might also move from site to si
 
 $$ Y \sim \mathcal{B}(p), \ p  = 1 - (1-\theta)^N $$ 
 
-This assumes individuals have all the same $\theta$. But let's assume there is variation between thetas, for instance through a beta distribution. If $\theta \sim Beta(a,b)$ then $1-\theta \sim Beta(b,a)$. And then one would need to find the distribution of $(1-\theta)^N$ for independently drawn Beta distribution (one for each individual), and perhaps integrate once more. 
-
-Maybe some colleagues already working with the Royle-Nichols model have found simpler ways to do this. 
+This assumes individuals have all the same $\theta$. But let's assume there is variation between thetas, for instance through a beta distribution. If $\theta \sim Beta(a,b)$ then $1-\theta \sim Beta(b,a)$. Although it is possible to compute $\mathbb{E}((1-\theta)^N)$ (moment of the Beta distribution) the expression is a product of $N$ terms rather than a function of N, which does not help us a lot. A more fruitful way to proceed might be to consider a finite mixture of e.g. two different probabilities so that $(1-p) = (1-\theta_1)^{\alphaN}(1-\theta_2)^{(1-\alpha)N}$ although this model might not be identifiable (useful to think). Maybe some colleagues already working with the Royle-Nichols model have found simpler ways to do this. 
