@@ -179,3 +179,5 @@ ggplot(n.df)+
                      sec.axis = sec_axis( transform=~.*2, name="CMR estimate"))+
   facet_wrap(~site)+
   theme_bw()
+
+ggsave("case_study/plots/CMR_vs_RN_bycam.png",  width = 29.7, height = 29.7, unit = "cm")
