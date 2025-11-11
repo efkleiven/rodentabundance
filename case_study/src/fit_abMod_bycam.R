@@ -124,23 +124,15 @@ M.mat <- M.mat_[, -grep(c("n"), colnames(M.mat_))]
 n.qu <- M.mat_[, grep("n", colnames(M.mat_))] %>%
   apply(2, function(x){quantile(x, c(0.025,0.5,0.975), na.rm = T)})
 
+dates <- detHist %>% 
+  group_by(t) %>%
+  summarize(date = min(date))
+
 n.df <- data.frame(Nest.inf = n.qu[1,],
                    Nest.med = n.qu[2,],
                    Nest.sup = n.qu[3,],
-                   t = rep(1:T, each = M),
+                   date = as_date(rep(dates$date, each = M)),
                    site = rep(unique(detHist$site), T))
-
-ggplot(n.df)+
-  geom_line(aes(x=t, y = Nest.med, col = site), linewidth = 1)+
-  geom_ribbon(aes(x = t, ymin = Nest.inf, ymax = Nest.sup, fill = site),
-              alpha = 0.50)+
-  facet_wrap(~site)+
-  theme_bw()
-
-cmr_data <- read.csv(cmr_data.filename) %>%
-  filter(year > 2017) %>%
-  mutate(date = ifelse(seas == "FALL", "-09-15", "-06-15")) %>%
-  mutate(date = as_date(paste0(year, date)))
 
 cmr_data.por.filename <- "case_study/data/Porsanger/cmr/karma_grid.csv"
 cmr_data.kar.filename <- "case_study/data/Porsanger/cmr/pors_grid.csv"
@@ -148,10 +140,12 @@ cmr_data.kar.filename <- "case_study/data/Porsanger/cmr/pors_grid.csv"
 cmr_data.por <- read.csv(cmr_data.por.filename) %>%
   filter(year > 2017) %>%
   mutate(date = ifelse(seas == "FALL", "-09-15", "-06-15")) %>%
-  mutate(date = as_date(paste0(year, date)))%>%
-  group_by(year, seas) %>%   
+  mutate(date = as_date(paste0(year, date)))
+
+cmr_data.por <- cmr_data.por %>%
+  group_by(year, seas, date) %>%   
   summarise(
-    across(G1:G20, \(x) sum(x, na.rm = TRUE)),
+    across(all_of(colnames(cmr_data.por)[1:11]), \(x) sum(x, na.rm = TRUE)),
     .groups = "drop"
   )
 
@@ -159,80 +153,29 @@ cmr_data.kar <- read.csv(cmr_data.kar.filename) %>%
   filter(year > 2017) %>%
   mutate(date = ifelse(seas == "FALL", "-09-15", "-06-15")) %>%
   mutate(date = as_date(paste0(year, date))) %>%
-  group_by(year, seas) %>%   
+  select(-X)
+
+cmr_data.kar <- cmr_data.kar %>%
+  group_by(year, seas, date) %>%   
   summarise(
-    across(T12:T52, \(x) sum(x, na.rm = TRUE)),
+    across(all_of(colnames(cmr_data.kar)[1:8]), \(x) sum(x, na.rm = TRUE)),
     .groups = "drop"
   )
 
+cmr_data <- left_join(cmr_data.por, cmr_data.kar)
+cmr_data <- cmr_data %>%
+  pivot_longer(cols = all_of(colnames(cmr_data)[4:ncol(cmr_data)]),
+               values_to = "cmr_estimate", names_to = "site") %>%
+  mutate(site = gsub("\\.", "-", site)) %>%
+  filter(site %in% unique(ct_data$site))
 
-p1 <- ggplot(n.df)+
-  geom_point(data = cmr_data, aes(x = date, y = PorsSum/7), col = "red")+
-  geom_line(data = cmr_data, aes(x = date, y = PorsSum/7), col = "red")+
-  geom_line(aes(x=date, y = Nest.med), col = "blue")+
-  geom_ribbon(aes(x = date, ymin = Nest.inf, ymax = Nest.sup),
-              fill = "lightblue", alpha = 0.5)+
-  scale_x_date(breaks = "6 months")+
+ggplot(n.df)+
+  geom_point(data = cmr_data, aes(x = date, y = cmr_estimate/2)) +
+  geom_line(data = cmr_data, aes(x = date, y = cmr_estimate/2)) +
+  geom_line(aes(x=date, y = Nest.med, col = site), linewidth = 1) +
+  geom_ribbon(aes(x = date, ymin = Nest.inf, ymax = Nest.sup, fill = site),
+              alpha = 0.50)+
   scale_y_continuous(name = "RN estimate",
-                     sec.axis = sec_axis( transform=~.*7, name="CMR estimate"))+
-  theme_bw()
-
-p2 <- ggplot(countHist)+
-  geom_point(data = cmr_data, aes(x = date, y = PorsSum/2), col = "red")+
-  geom_line(data = cmr_data, aes(x = date, y = PorsSum/2), col = "red")+
-  geom_line(aes(x=date, y = volecount))+
-  scale_x_date(breaks = "6 months")+
-  scale_y_continuous(name = "CT estimate",
                      sec.axis = sec_axis( transform=~.*2, name="CMR estimate"))+
+  facet_wrap(~site)+
   theme_bw()
-
-p1/p2
-
-ggsave("case_study/plots/CMR_vs_RN_vs_CT.png",  width = 29.7, height = 29.7, unit = "cm")
-
-# date.df <- data.frame(date = seq(as.Date("2019/1/1"), as.Date("2019/12/31"), by = "day"),
-#                       int = 1,
-#                       yday = 1:365) %>%
-#   mutate(yday2 = yday ** 2)
-# 
-# date.df$omega <- M.mat[, grep("d\\[", colnames(M.mat_))]%>%
-#   apply(2, median) %*% t(as.matrix(date.df[,c("int", "yday", "yday2")])) %>%
-#   c %>%
-#   invlogit
-# 
-# date.df %>% 
-# ggplot()+
-#   geom_line(aes(x = date, y = omega)) +
-#   ggtitle("survival rate") +
-#   theme_bw()
-# 
-# a_int <- M.mat[, grep("a_RE_stat\\[", colnames(M.mat_))]%>%
-#   apply(1, mean)
-# a_SNOW <- M.mat[,"a"]
-# 
-# a.df <- data.frame(NOSNOW = invlogit(a_int),
-#                    SNOW = invlogit(a_int+a_SNOW))
-# 
-# ggplot(a.df)+
-#   geom_violin(aes(x = "NOSNOW", y = NOSNOW), fill = "lightgreen")+
-#   geom_violin(aes(x = "SNOW", y = SNOW), fill = "lightblue")+
-#   geom_point(aes(x = "NOSNOW", y = NOSNOW), col = "red", size = .5)+
-#   geom_point(aes(x = "SNOW", y = SNOW), col = "red", size = .5)+
-#   geom_segment(aes(x = "NOSNOW", xend = "SNOW", y = NOSNOW, yend = SNOW), size = .1) +
-#   ggtitle("individual detection probability") +
-#   theme_bw()
-# 
-# d_int <- M.mat[, "d[1]"]
-# d_SNOW <- M.mat[,"d[2]"]
-# 
-# d.df <- data.frame(NOSNOW = invlogit(d_int),
-#                    SNOW = invlogit(d_int+d_SNOW))
-# 
-# ggplot(d.df)+
-#   geom_violin(aes(x = "NOSNOW", y = NOSNOW), fill = "lightgreen")+
-#   geom_violin(aes(x = "SNOW", y = SNOW), fill = "lightblue")+
-#   geom_point(aes(x = "NOSNOW", y = NOSNOW), col = "red", size = .5)+
-#   geom_point(aes(x = "SNOW", y = SNOW), col = "red", size = .5)+
-#   geom_segment(aes(x = "NOSNOW", xend = "SNOW", y = NOSNOW, yend = SNOW), size = .1) +
-#   ggtitle("survival rate") +
-#   theme_bw()
