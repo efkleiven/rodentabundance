@@ -142,6 +142,30 @@ cmr_data <- read.csv(cmr_data.filename) %>%
   mutate(date = ifelse(seas == "FALL", "-09-15", "-06-15")) %>%
   mutate(date = as_date(paste0(year, date)))
 
+cmr_data.por.filename <- "case_study/data/Porsanger/cmr/karma_grid.csv"
+cmr_data.kar.filename <- "case_study/data/Porsanger/cmr/pors_grid.csv"
+
+cmr_data.por <- read.csv(cmr_data.por.filename) %>%
+  filter(year > 2017) %>%
+  mutate(date = ifelse(seas == "FALL", "-09-15", "-06-15")) %>%
+  mutate(date = as_date(paste0(year, date)))%>%
+  group_by(year, seas) %>%   
+  summarise(
+    across(G1:G20, \(x) sum(x, na.rm = TRUE)),
+    .groups = "drop"
+  )
+
+cmr_data.kar <- read.csv(cmr_data.kar.filename) %>%
+  filter(year > 2017) %>%
+  mutate(date = ifelse(seas == "FALL", "-09-15", "-06-15")) %>%
+  mutate(date = as_date(paste0(year, date))) %>%
+  group_by(year, seas) %>%   
+  summarise(
+    across(T12:T52, \(x) sum(x, na.rm = TRUE)),
+    .groups = "drop"
+  )
+
+
 p1 <- ggplot(n.df)+
   geom_point(data = cmr_data, aes(x = date, y = PorsSum/7), col = "red")+
   geom_line(data = cmr_data, aes(x = date, y = PorsSum/7), col = "red")+
