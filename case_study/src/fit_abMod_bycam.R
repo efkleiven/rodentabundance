@@ -128,15 +128,13 @@ n.df <- data.frame(Nest.inf = n.qu[1,],
                    Nest.med = n.qu[2,],
                    Nest.sup = n.qu[3,],
                    t = rep(1:T, each = M),
-                   m = rep(1:M, T))
+                   site = rep(unique(detHist$site), T))
 
 ggplot(n.df)+
-  geom_line(data = detHist %>% group_by(t, site) %>% summarize(vole = sum(vole)),
-            aes(x=t, y = vole, col = site))+
-  geom_line(aes(x=t, y = Nest.med), col = "black")+
-  geom_ribbon(aes(x = t, ymin = Nest.inf, ymax = Nest.sup),
-              fill = "black", alpha = 0.5)+
-  scale_x_date(breaks = "6 months")+
+  geom_line(aes(x=t, y = Nest.med, col = site), linewidth = 1)+
+  geom_ribbon(aes(x = t, ymin = Nest.inf, ymax = Nest.sup, fill = site),
+              alpha = 0.50)+
+  facet_wrap(~site)+
   theme_bw()
 
 cmr_data <- read.csv(cmr_data.filename) %>%
