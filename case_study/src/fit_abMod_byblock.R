@@ -211,3 +211,24 @@ p2 <- ggplot(countHist)+
 (p1 | p2)
 
 ggsave("case_study/plots/CMR_vs_RN_vs_CT_byblock.png",  width = 29.7, height = 29.7, unit = "cm")
+
+data.frame(M.mat) %>%
+  mutate(rho = invlogit(a),
+         gamma = exp(b),
+         omega = invlogit(d)) %>% 
+  pivot_longer(cols = c("rho", "gamma", "omega"), names_to = "param", values_to = "value") %>%
+  ggplot() + 
+  geom_histogram(aes(x = value)) + 
+  facet_wrap( ~ param, scales = "free") + 
+  theme_bw()
+  
+ggsave("case_study/plots/estimates_byblock.png",  width = 29.7, height = 15, unit = "cm")
+
+# ggplot(a.df)+
+#   geom_violin(aes(x = "NOSNOW", y = NOSNOW), fill = "lightgreen")+
+#   geom_violin(aes(x = "SNOW", y = SNOW), fill = "lightblue")+
+#   geom_point(aes(x = "NOSNOW", y = NOSNOW), col = "red", size = .5)+
+#   geom_point(aes(x = "SNOW", y = SNOW), col = "red", size = .5)+
+#   geom_segment(aes(x = "NOSNOW", xend = "SNOW", y = NOSNOW, yend = SNOW), size = .1) +
+#   ggtitle("individual detection probability") +
+#   theme_bw()
