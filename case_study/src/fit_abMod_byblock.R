@@ -1,5 +1,4 @@
 library(tidyverse)
-library(foreach)
 library(lubridate)
 
 library(LaplacesDemon)
@@ -10,35 +9,27 @@ library(patchwork)
 
 rm(list = ls())
 
-modname = ""
 K = 5
 
 ### 1. Load Data ---------------------------------------------------------------
 
 ct_data.filename <- "case_study/data/camData_pors.rds"
-cmr_data.filename <- "case_study/data/Porsanger/cmr/porsanger_mus_reg_2025.csv"
-blocks.filename <- "case_study/data/Porsanger/camera_blocks.csv"
+cmr_data.por.filename <- "case_study/data/Porsanger/cmr/karma_grid.csv"
+cmr_data.kar.filename <- "case_study/data/Porsanger/cmr/pors_grid.csv"
+regions.filename <- "case_study/data/Porsanger/camera_blocks.csv"
 
 ct_data <- readRDS(ct_data.filename) %>%
   filter(year >= 2017)
 
-day.orig <- min(ct_data$date)
-
 ct_data <- ct_data %>%
-  mutate(jday = julian(date, origin = day.orig) + 1,
+  mutate(jday = julian(date, origin = min(ct_data$date)) + 1,
          t = (jday - 1) %/% K + 1)
 
 detHist <- ct_data %>%
   group_by(site, t, date, jday) %>% 
   summarize(vole = as.numeric(any(species == "vole")))
 
-countHist <- ct_data %>%
-  mutate(period = jday %/% 5) %>%
-  group_by(period, jday) %>% 
-  summarize(t = t[1], date = date[1],
-            volecount = sum(as.numeric(species == "vole")))
-
-cam_to_block <- read.csv(blocks.filename, sep = ";")
+regions <- read.csv(regions.filename, sep = ";")
 
 ### 2. Get Data Matrix ---------------------------------------------------------
 
@@ -50,63 +41,54 @@ y.df <- detHist%>%
 M <- length(unique(detHist$site))
 T <- max(detHist$t)
 
-y.mat <- array(NA, dim = c(M, T, K))
+y <- array(NA, dim = c(M, T, K))
 for(i in 1:nrow(y.df)){
-  y.mat[, y.df$t[i], y.df$k[i]] <- t(y.df[i,unique(detHist$site)]) + 1
+  y[, y.df$t[i], y.df$k[i]] <- t(y.df[i,unique(detHist$site)]) + 1
 }
 
 ### 3. Get covariates ----------------------------------------------------------
 
 covs <- ct_data %>% 
   group_by(t) %>%
-  summarize(year = year[1],
-            date = date[1],
+  summarize(date = date[1],
             int = 1) %>%
-  mutate(breeding = as.numeric(month(date) %in% 5:9)) %>%
+  mutate(season = ifelse(yday(date) < 274 & yday(date) > 152 , "spring", "winter")) %>% # spring between June 1st and October 1st
+  mutate(year = (data.table::rleid(season) - 1) %/% 2) %>% # change year every begining of spring
   left_join(data.frame(t = 1:T), .)
 
-years <- covs$year
-Nyears <- length(unique(years))
+y <- y[, covs$year != 6,]
+covs <- covs[covs$year != 6, ]
 
 ### 4. Prepare to run the model ------------------------------------------------
 
-# individual detection
-rho_covs <- as.matrix(covs[, c("int")])
-
-# natality
-gam_covs <- as.matrix(covs[, c("int")])
-
-#survival rate
-tau_covs <- as.matrix(covs[, c("int")])
-
-rho_covs[is.na(rho_covs)] <- 0 
-gam_covs[is.na(gam_covs)] <- 0 
-tau_covs[is.na(tau_covs)] <- 0 
-
-data_list <- list(rho_covs = rho_covs,
-                  gam_covs = gam_covs,
-                  tau_covs = tau_covs,
-                  Ncov_rho = ncol(rho_covs),
-                  Ncov_gam = ncol(gam_covs),
-                  Ncov_tau = ncol(tau_covs),
-                  T = T, M = M, K = K, 
-                  B = length(unique(cam_to_block$block)),
-                  y = y.mat,
-                  blocks = cam_to_block$block)
+data_list <- list(y = y,
+                  region = regions$block,
+                  year = as.numeric(as_factor(covs$year)),
+                  season = as.numeric(as_factor(covs$season)),
+                  T = dim(y)[2], M = M, K = K, 
+                  R = length(unique(regions$block)),
+                  Nyear = length(unique(covs$year))
+                  )
 
 ### 5. Run Model ---------------------------------------------------------------
 
 NCHAINS = 2
 
-inits <- foreach(ch = 1:NCHAINS) %do%{
-  list(a = rnorm(ncol(rho_covs), 0, 0),
-       b = rnorm(ncol(gam_covs), 0, 0),
-       d = rnorm(ncol(tau_covs), 0, 0), 
-       lam = runif(1, 1, 10))
-}
+inits <- map(1:NCHAINS, 
+             ~ list(mu_gamma = rnorm(1, 0, 0),
+                    mu_omega = rnorm(1, 0, 0),
+                    mu_theta = rnorm(1, 0, 0),
+                    beta_gamma_year = rnorm(data_list$Nyear, 0, 0),
+                    beta_omega_year = rnorm(data_list$Nyear, 0, 0),
+                    beta_gamma_season = c(0, rnorm(1, 0, 0)),
+                    beta_omega_season = c(0, rnorm(1, 0, 0)),
+                    lambda = runif(1, 1, 10)))
 
 Mod <- run.jags(model = "case_study/src/abMod_byblock_jags.R",
-              monitor = c("a", "b", "d", "lam", "n"),
+              monitor = c("mu_gamma", "mu_omega", "mu_theta",
+                          "beta_gamma_year", "beta_gamma_season", 
+                          "beta_omega_year", "beta_omega_season", 
+                          "lambda", "n"),
               data = data_list,
               n.chains = NCHAINS,
               inits = inits,
@@ -120,25 +102,29 @@ Mod <- run.jags(model = "case_study/src/abMod_byblock_jags.R",
 
 ### 6. Model Analysis ----------------------------------------------------------
 
+## a. get mcmcs matrices
+
 M.mat_ <- as.matrix(as.mcmc.list(Mod))
 
-M.mat <- M.mat_[, -grep(c("n"), colnames(M.mat_))]
+M.mat <- M.mat_[, -grep(c("^n\\["), colnames(M.mat_))]
 
-n.qu <- M.mat_[, grep("n", colnames(M.mat_))] %>%
+n.qu <- M.mat_[, grep("^n\\[", colnames(M.mat_))] %>%
   apply(2, function(x){quantile(x, c(0.025,0.5,0.975), na.rm = T)})
 
 dates <- detHist %>% 
+  filter(t <= dim(y)[2]) %>%
   group_by(t) %>%
   summarize(date = min(date))
+
+## b. summarise estimated abundances
 
 n.df <- data.frame(Nest.inf = n.qu[1,],
                    Nest.med = n.qu[2,],
                    Nest.sup = n.qu[3,],
-                   date = as_date(rep(dates$date, each = length(unique(cam_to_block$block)))),
-                   block = rep(unique(cam_to_block$block), T))
+                   date = as_date(rep(dates$date, each = length(unique(regions$block)))),
+                   block = rep(unique(regions$block), dim(y)[2]))
 
-cmr_data.por.filename <- "case_study/data/Porsanger/cmr/karma_grid.csv"
-cmr_data.kar.filename <- "case_study/data/Porsanger/cmr/pors_grid.csv"
+## c. get CMR data 
 
 cmr_data.por <- read.csv(cmr_data.por.filename) %>%
   filter(year > 2017) %>%
@@ -173,7 +159,7 @@ cmr_data <- cmr_data %>%
   filter(site %in% unique(ct_data$site))
 
 cmr_data <- cmr_data %>%
-  left_join(cam_to_block) %>%
+  left_join(regions) %>%
   group_by(year, seas, date, block) %>% 
   summarize(cmr_estimate = sum(cmr_estimate))
 
@@ -182,18 +168,20 @@ countHist <- ct_data %>%
   group_by(period, site, jday) %>% 
   summarize(t = t[1], date = date[1],
             volecount = sum(as.numeric(species == "vole"))) %>% 
-  left_join(cam_to_block) %>%
+  left_join(regions) %>%
   group_by(date, block) %>% 
   summarize(volecount = sum(volecount))
 
+## d. plot time series of CT, RN, and CMR abundance estimates
+
 p1 <- ggplot(n.df)+
-  geom_point(data = cmr_data, aes(x = date, y = cmr_estimate/6)) +
-  geom_line(data = cmr_data, aes(x = date, y = cmr_estimate/6)) +
+  geom_point(data = cmr_data, aes(x = date, y = cmr_estimate/3)) +
+  geom_line(data = cmr_data, aes(x = date, y = cmr_estimate/3)) +
   geom_line(aes(x=date, y = Nest.med, col = factor(block)), linewidth = 1, show.legend = F) +
   geom_ribbon(aes(x = date, ymin = Nest.inf, ymax = Nest.sup, fill = factor(block)),
               alpha = 0.50, show.legend = F)+
   scale_y_continuous(name = "RN estimate",
-                     sec.axis = sec_axis( transform=~.*6, name="CMR estimate"))+
+                     sec.axis = sec_axis( transform=~.*3, name="CMR estimate"))+
   facet_wrap(~block)+
   theme_bw()
 
@@ -212,23 +200,34 @@ p2 <- ggplot(countHist)+
 
 ggsave("case_study/plots/CMR_vs_RN_vs_CT_byblock.png",  width = 29.7, height = 29.7, unit = "cm")
 
-data.frame(M.mat) %>%
-  mutate(rho = invlogit(a),
-         gamma = exp(b),
-         omega = invlogit(d)) %>% 
-  pivot_longer(cols = c("rho", "gamma", "omega"), names_to = "param", values_to = "value") %>%
-  ggplot() + 
-  geom_histogram(aes(x = value)) + 
-  facet_wrap( ~ param, scales = "free") + 
-  theme_bw()
-  
-ggsave("case_study/plots/estimates_byblock.png",  width = 29.7, height = 15, unit = "cm")
+## e. plot parameter values
 
-# ggplot(a.df)+
-#   geom_violin(aes(x = "NOSNOW", y = NOSNOW), fill = "lightgreen")+
-#   geom_violin(aes(x = "SNOW", y = SNOW), fill = "lightblue")+
-#   geom_point(aes(x = "NOSNOW", y = NOSNOW), col = "red", size = .5)+
-#   geom_point(aes(x = "SNOW", y = SNOW), col = "red", size = .5)+
-#   geom_segment(aes(x = "NOSNOW", xend = "SNOW", y = NOSNOW, yend = SNOW), size = .1) +
-#   ggtitle("individual detection probability") +
+gam <- exp(M.mat[, grep("b\\[", colnames(M.mat_))])
+colnames(gam) <- colnames(gam_covs)
+gam <- pivot_longer(data.frame(gam), cols = colnames(gam), names_to = "level") %>% 
+  mutate(param = "gamma")
+
+omega <- invlogit(M.mat[, grep("d\\[", colnames(M.mat_))])
+colnames(omega) <- colnames(tau_covs)
+omega <- pivot_longer(data.frame(omega), cols = colnames(omega), names_to = "level") %>% 
+  mutate(param = "omega")
+
+demo_pars <- rbind(gam, omega) %>%
+  mutate(variable = ifelse(grepl("yr", level), "year", "season")) %>%
+  filter(level != "yr.6")
+
+ggplot(demo_pars) +
+  geom_boxplot(aes(x = level, y = value)) + 
+  facet_wrap( ~ paste(param, "-", variable), scales = "free")
+
+# data.frame(M.mat) %>%
+#   mutate(rho = invlogit(a),
+#          gamma = exp(b),
+#          omega = invlogit(d)) %>% 
+#   pivot_longer(cols = c("rho", "gamma", "omega"), names_to = "param", values_to = "value") %>%
+#   ggplot() + 
+#   geom_histogram(aes(x = value)) + 
+#   facet_wrap( ~ param, scales = "free") + 
 #   theme_bw()
+#   
+# ggsave("case_study/plots/estimates_byblock.png",  width = 29.7, height = 15, unit = "cm")
