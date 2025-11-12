@@ -133,8 +133,8 @@ Mod <- run.jags(model = "case_study/src/abMod_jags.R",
 
 M.mat_ <- as.matrix(as.mcmc.list(Mod))
 
-source("src/model_summary.R")
-
+# source("src/model_summary.R")
+# 
 # M.mat <- M.mat_[, c(-grep(c("Chi2.sim"), colnames(M.mat_)),
 #                     -grep(c("Chi2.obs"), colnames(M.mat_)))]
 # 
@@ -151,7 +151,7 @@ source("src/model_summary.R")
 M.mat <- M.mat_[, c(-grep(c("Chi2.obs"), colnames(M.mat_)),
                     -grep(c("Chi2.sim"), colnames(M.mat_)))]
 
-sumStats <- mod.sumStat(mm = M.mat, data_list = data_list)
+# sumStats <- mod.sumStat(mm = M.mat, data_list = data_list)
 
 M.mat <- M.mat[, c(-grep(c("n"), colnames(M.mat_)),
                     -grep(c("G"), colnames(M.mat_)),
@@ -215,28 +215,27 @@ cmr_data <- cmr_data %>%
   filter(site %in% unique(ct_data$site))
 
 cmr_data <- cmr_data %>%
-  left_join(cam_to_block) %>%
   group_by(year, seas, date) %>% 
   summarize(cmr_estimate = sum(cmr_estimate))
 
 p1 <- ggplot(n.df)+
-  geom_point(data = cmr_data, aes(x = date, y = PorsSum/7), col = "red")+
-  geom_line(data = cmr_data, aes(x = date, y = PorsSum/7), col = "red")+
+  geom_point(data = cmr_data, aes(x = date, y = cmr_estimate/15), col = "red")+
+  geom_line(data = cmr_data, aes(x = date, y = cmr_estimate/15), col = "red")+
   geom_line(aes(x=date, y = Nest.med), col = "blue")+
   geom_ribbon(aes(x = date, ymin = Nest.inf, ymax = Nest.sup),
               fill = "lightblue", alpha = 0.5)+
   scale_x_date(breaks = "6 months")+
   scale_y_continuous(name = "RN estimate",
-                     sec.axis = sec_axis( transform=~.*7, name="CMR estimate"))+
+                     sec.axis = sec_axis( transform=~.*15, name="CMR estimate"))+
   theme_bw()
 
 p2 <- ggplot(countHist)+
-  geom_point(data = cmr_data, aes(x = date, y = PorsSum/2), col = "red")+
-  geom_line(data = cmr_data, aes(x = date, y = PorsSum/2), col = "red")+
+  geom_point(data = cmr_data, aes(x = date, y = cmr_estimate/5), col = "red")+
+  geom_line(data = cmr_data, aes(x = date, y = cmr_estimate/5), col = "red")+
   geom_line(aes(x=date, y = volecount))+
   scale_x_date(breaks = "6 months")+
   scale_y_continuous(name = "CT estimate",
-                     sec.axis = sec_axis( transform=~.*2, name="CMR estimate"))+
+                     sec.axis = sec_axis( transform=~.*5, name="CMR estimate"))+
   theme_bw()
 
 p1/p2
