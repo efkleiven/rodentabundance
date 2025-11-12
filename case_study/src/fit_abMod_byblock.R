@@ -177,15 +177,37 @@ cmr_data <- cmr_data %>%
   group_by(year, seas, date, block) %>% 
   summarize(cmr_estimate = sum(cmr_estimate))
 
-ggplot(n.df)+
+countHist <- ct_data %>%
+  mutate(period = jday %/% 5) %>%
+  group_by(period, site, jday) %>% 
+  summarize(t = t[1], date = date[1],
+            volecount = sum(as.numeric(species == "vole"))) %>% 
+  left_join(cam_to_block) %>%
+  group_by(date, block) %>% 
+  summarize(volecount = sum(volecount))
+
+p1 <- ggplot(n.df)+
   geom_point(data = cmr_data, aes(x = date, y = cmr_estimate/6)) +
   geom_line(data = cmr_data, aes(x = date, y = cmr_estimate/6)) +
-  geom_line(aes(x=date, y = Nest.med, col = factor(block)), linewidth = 1) +
+  geom_line(aes(x=date, y = Nest.med, col = factor(block)), linewidth = 1, show.legend = F) +
   geom_ribbon(aes(x = date, ymin = Nest.inf, ymax = Nest.sup, fill = factor(block)),
-              alpha = 0.50)+
+              alpha = 0.50, show.legend = F)+
   scale_y_continuous(name = "RN estimate",
                      sec.axis = sec_axis( transform=~.*6, name="CMR estimate"))+
   facet_wrap(~block)+
   theme_bw()
 
-ggsave("case_study/plots/CMR_vs_RN_byblock.png",  width = 29.7, height = 29.7, unit = "cm")
+p2 <- ggplot(countHist)+
+  geom_line(aes(x=date, y = volecount), col = "grey")+
+  geom_point(data = cmr_data, aes(x = date, y = cmr_estimate/5))+
+  geom_line(data = cmr_data, aes(x = date, y = cmr_estimate/5))+
+  scale_x_date(breaks = "6 months")+
+  scale_y_continuous(name = "CT estimate",
+                     sec.axis = sec_axis( transform=~.*5, name="CMR estimate"))+
+  facet_wrap(~block)+
+  ylim(c(0,100))+
+  theme_bw()
+
+(p1 | p2)
+
+ggsave("case_study/plots/CMR_vs_RN_vs_CT_byblock.png",  width = 29.7, height = 29.7, unit = "cm")
