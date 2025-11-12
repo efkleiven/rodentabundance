@@ -11,7 +11,7 @@ library(patchwork)
 rm(list = ls())
 
 modname = ""
-K = 7
+K = 5
 # SITE = "Hakoya"
 
 ### 1. Load Data ---------------------------------------------------------------
@@ -179,10 +179,45 @@ ggplot(n.df)+
   scale_x_date(breaks = "6 months")+
   theme_bw()
 
-cmr_data <- read.csv(cmr_data.filename) %>%
+cmr_data.por.filename <- "case_study/data/Porsanger/cmr/karma_grid.csv"
+cmr_data.kar.filename <- "case_study/data/Porsanger/cmr/pors_grid.csv"
+
+cmr_data.por <- read.csv(cmr_data.por.filename) %>%
   filter(year > 2017) %>%
   mutate(date = ifelse(seas == "FALL", "-09-15", "-06-15")) %>%
   mutate(date = as_date(paste0(year, date)))
+
+cmr_data.por <- cmr_data.por %>%
+  group_by(year, seas, date) %>%   
+  summarise(
+    across(all_of(colnames(cmr_data.por)[1:11]), \(x) sum(x, na.rm = TRUE)),
+    .groups = "drop"
+  )
+
+cmr_data.kar <- read.csv(cmr_data.kar.filename) %>%
+  filter(year > 2017) %>%
+  mutate(date = ifelse(seas == "FALL", "-09-15", "-06-15")) %>%
+  mutate(date = as_date(paste0(year, date))) %>%
+  select(-X)
+
+cmr_data.kar <- cmr_data.kar %>%
+  group_by(year, seas, date) %>%   
+  summarise(
+    across(all_of(colnames(cmr_data.kar)[1:8]), \(x) sum(x, na.rm = TRUE)),
+    .groups = "drop"
+  )
+
+cmr_data <- left_join(cmr_data.por, cmr_data.kar)
+cmr_data <- cmr_data %>%
+  pivot_longer(cols = all_of(colnames(cmr_data)[4:ncol(cmr_data)]),
+               values_to = "cmr_estimate", names_to = "site") %>%
+  mutate(site = gsub("\\.", "-", site)) %>%
+  filter(site %in% unique(ct_data$site))
+
+cmr_data <- cmr_data %>%
+  left_join(cam_to_block) %>%
+  group_by(year, seas, date) %>% 
+  summarize(cmr_estimate = sum(cmr_estimate))
 
 p1 <- ggplot(n.df)+
   geom_point(data = cmr_data, aes(x = date, y = PorsSum/7), col = "red")+
