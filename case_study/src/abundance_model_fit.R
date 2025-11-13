@@ -20,6 +20,7 @@ NCHAINS = 2
 ### 1. Load Data ---------------------------------------------------------------
 
 ct_data.filename <- "case_study/data/camData_pors.rds"
+missing_ct_data.filename <- "case_study/data/missing_camera_data_pors.rda"
 regions.filename <- "case_study/data/Porsanger/camera_blocks.csv"
 
 ct_data <- readRDS(ct_data.filename) %>%
@@ -58,6 +59,8 @@ detHist <- detHist %>%
 
 ### 3. Get data matrix ---------------------------------------------------------
 
+load(missing_ct_data.filename) #cam_weekly
+
 M <- length(unique(detHist$site))
 T <- max(detHist$t)
 
@@ -66,12 +69,18 @@ y <- expand.grid(t = 1:T, m = 1:M, k = 1:K) %>%
   select(m,t,k,vole_presence) %>%
   mutate(vole_presence = replace_na(vole_presence, 0))
 
+cam_weekly <- mutate(cam_weekly,
+                     m = as.numeric(as.factor(site))) %>%
+  left_join(regions) %>%
+  mutate(keep = bad_q_sum < 3)
+
+y <- left_join(y, cam_weekly) %>%
+  mutate(vole_presence = ifelse(keep, vole_presence, NA))
+
 y <- array(y$vole_presence, dim = c(T, M, K)) %>%
   aperm(c(2,1,3))
 
-y <- y
-
-### 3. Get covariates ----------------------------------------------------------
+### 4. Get covariates ----------------------------------------------------------
 
 time_covariates <- detHist %>% 
   group_by(t) %>%
@@ -79,7 +88,7 @@ time_covariates <- detHist %>%
             year = year[1]) %>%
   distinct
 
-### 4. Set up model ------------------------------------------------------------
+### 5. Set up model ------------------------------------------------------------
 
 data_list <- list(y = y,
                   region = regions$block,
@@ -99,9 +108,9 @@ inits <- map(1:NCHAINS,
                     beta_omega_season = c(0, rnorm(1, 0, 0)),
                     lambda = runif(1, 1, 10)))
 
-### 5. Run Model ---------------------------------------------------------------
+### 6. Run Model ---------------------------------------------------------------
 
-Mod <- run.jags(model = "case_study/src/abMod_byblock_jags.R",
+Mod <- run.jags(model = "case_study/src/abundance_model_jags.R",
               monitor = c("mu_gamma", "mu_omega", "mu_theta",
                           "beta_gamma_year", "beta_gamma_season", 
                           "beta_omega_year", "beta_omega_season", 
@@ -121,7 +130,7 @@ Model_matrix2 <- Model_matrix1[, -grep(c("^n\\["), colnames(Model_matrix1))]
 
 # saveRDS(Mod, file = paste0("outputs/Models/abMod_", SITE,"_",modname, ".rds"))
 
-### 6. Plot estimated abundance ------------------------------------------------
+### 7. Plot estimated abundance ------------------------------------------------
 
 ### a. get other abundance metrics ---
 
@@ -131,7 +140,7 @@ CT_abundances <- detHist %>%
   left_join(regions) %>%
   group_by(block, t) %>%
     summarize(date = date[1],
-              vole_count = sum(vole_count, ))
+              vole_count = sum(vole_count))
 
 all_dates <- detHist %>% 
   group_by(t) %>%
@@ -193,7 +202,7 @@ p2 <- ggplot(CT_abundances)+
 
 ggsave("case_study/plots/CMR_vs_RN_vs_CT_byblock.png",  width = 29.7, height = 29.7, unit = "cm")
 
-### 7. Plot parameter values ---------------------------------------------------
+### 8. Plot parameter values ---------------------------------------------------
 
 mu <- Model_matrix2[, grep("mu_", colnames(Model_matrix2))]
 
