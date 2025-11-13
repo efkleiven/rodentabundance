@@ -52,10 +52,15 @@ $$ Y_{m,t,k} \sim \mathcal{B}(p_{m,t,k}), \ p_{m,t,k}  = 1 - (1-\theta_{m,t,k})^
 while the biological process model writes
 
 $$ N_{t,r} = S_{t-1,r} + G_{t-1,r} $$
-$$ S_{t-1,r} \sim \mathcal{B}(N_{t-1,r},\omega) $$     
+$$ S_{t-1,r} \sim \mathcal{B}(N_{t-1,r},\omega_t) $$     
 $$ G_{t-1,r} \sim \mathcal{P}(\gamma_{t-1}) $$
 
-Here we assume that recruitment and survival are synchronized throughout the whole area, which in our case of rodent dynamics may be a reasonable assumption. 
+we then use covariates on those rates to be able to estimate season-specific and year-specific effects, and predict for a given year x season combination. We could have structured by phase, but with 5 or 6 years of data it really makes less sense than for a very long time series. 
+
+$$ \text{logit}(\omega_t) = \mu_{\omega} + \beta_{\omega,1,\text{year}[t]} + \beta_{\omega,2,\text{season}[t]} $$
+$$ \text{logit}(\gamma_t) = \mu_{\gamma} + \beta_{\gamma,1,\text{year}[t]} + \beta_{\gamma,2,\text{season}[t]}$$
+
+Here we assume that recruitment and survival are synchronized throughout the whole area, which in our case of rodent dynamics in Porsanger (and Håkøya) may be a reasonable assumption. Then as we move to Varanger we may want to have differing recruitment and survival rates. If there are many blocks nested within larger regions this could potentially be made as well with a (hierarchical) random effects structure. 
 
 $\theta_{m,t,k}$ can be either constant or influenced by covariables (but not freely estimated at that scale), and covariates must be not too heavily correlated with $N_{t,r[m]}$.
 
@@ -65,4 +70,4 @@ $\theta_{m,t,k}$ can be either constant or influenced by covariables (but not fr
 
 $$ Y \sim \mathcal{B}(p), \ p  = 1 - (1-\theta)^N $$ 
 
-This assumes individuals have all the same $\theta$. But let's assume there is variation between thetas, for instance through a beta distribution. If $\theta \sim Beta(a,b)$ then $1-\theta \sim Beta(b,a)$. Although it is possible to compute $\mathbb{E}((1-\theta)^N)$ (moment of the Beta distribution) the expression is a product of $N$ terms rather than a function of N, which does not help us a lot. A more fruitful way to proceed might be to consider a finite mixture of e.g. two different probabilities so that $(1-p) = (1-\theta_1)^{\alphaN}(1-\theta_2)^{(1-\alpha)N}$ although this model might not be identifiable (useful to think). Maybe some colleagues already working with the Royle-Nichols model have found simpler ways to do this. 
+This assumes individuals have all the same $\theta$. But let's assume there is variation between thetas, for instance through a beta distribution. If $\theta \sim Beta(a,b)$ then $1-\theta \sim Beta(b,a)$. Although it is possible to compute $\mathbb{E}((1-\theta)^N)$ (moment of the Beta distribution) the expression is a product of $N$ terms rather than a function of N, which does not help us a lot. A more fruitful way to proceed might be to consider a finite mixture of e.g. two different probabilities so that $(1-p) = (1-\theta_1)^{\alpha N}(1-\theta_2)^{(1-\alpha)N}$ although this model might not be identifiable (useful to think). Maybe some colleagues already working with the Royle-Nichols model have found simpler ways to do this. 
