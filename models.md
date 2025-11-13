@@ -57,6 +57,8 @@ $$ G_{t-1,r} \sim \mathcal{P}(\gamma_{t-1}) $$
 
 Here we assume that recruitment and survival are synchronized throughout the whole area, which in our case of rodent dynamics may be a reasonable assumption. 
 
+$\theta_{m,t,k}$ can be either constant or influenced by covariables (but not freely estimated at that scale), and covariates must be not too heavily correlated with $N_{t,r[m]}$.
+
 ### How could we introduce heterogeneity between individuals? 
 
 (Should we want to do that). Let's drop indices and consider a simplified detection model at a given site, primary occasion, and secondary occasion. We just sketch some ideas
