@@ -13,7 +13,7 @@ Please mind that Farr et al. Cons Biol 2022 used $j$ for site and $k$ for repeat
 The equivalent of blocks in that code might be regions. 
 
 
-### Model currently used
+### Initial model used
 
 For the moment we consider one species so we drop index $i$ and one region / pop so we drop index $r$ (the code considers $r \in \{1,..., R \}$ though. The detection submodel writes
 
@@ -37,11 +37,25 @@ $$ Y_{m,t,k} \sim \mathcal{B}(p_{m,t,k}), \ p_{m,t,k}  = 1 - (1-\theta_{m,t,k})^
 while the biological process model writes
 
 $$ N_{t,m} = S_{t-1,m} + G_{t-1,m} $$
-$$ S_{t-1,m} \sim \mathcal{B}(N_{t-1,m},\omega) $$     
-$$ G_{t-1,m} \sim \mathcal{P}(\gamma_{t-1}) $$
+$$ S_{t-1,m} \sim \mathcal{B}(N_{t-1,m},\omega_{m,t-1}) $$     
+$$ G_{t-1,m} \sim \mathcal{P}(\gamma_{m,t-1}) $$
 
 Because $N_m$ is sampling site $m$ (camera)-specific and a sum has to be taken so that $N_t = \sum_{m=1}^{M} N_{m,t}$, it is assumed that individuals do not flow from one sampling site to the next, within a secondary occasion. In reality they might from time to time. This might lead to a true N lower than the one being estimated, 
 hence some overestimation of true pop size. They might also move from site to site, from one primary occasion to the next, which the biological process model does not take into account (assumes independent dynamics per site). 
+
+### Consensus model
+
+Let's index the region by $r$--which can be a block of cameras in a given habitat or a larger spatial extent if need be
+
+$$ Y_{m,t,k} \sim \mathcal{B}(p_{m,t,k}), \ p_{m,t,k}  = 1 - (1-\theta_{m,t,k})^{N_{t,r[m]}}$$ 
+
+while the biological process model writes
+
+$$ N_{t,r} = S_{t-1,r} + G_{t-1,r} $$
+$$ S_{t-1,r} \sim \mathcal{B}(N_{t-1,r},\omega) $$     
+$$ G_{t-1,r} \sim \mathcal{P}(\gamma_{t-1}) $$
+
+Here we assume that recruitment and survival are synchronized throughout the whole area, which in our case of rodent dynamics may be a reasonable assumption. 
 
 ### How could we introduce heterogeneity between individuals? 
 
