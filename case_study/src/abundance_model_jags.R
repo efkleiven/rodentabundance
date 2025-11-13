@@ -4,7 +4,7 @@ model{
     for(m in 1:M){
       p[m,t] <- 1 - (1 - theta)**n[region[m], t]
       for(k in 1:K){
-        y[m,t,k] ~ dcat(c(1-p[m,t], p[m,t]))
+        y[m,t,k] ~ dbern(p[m,t])
       }
     }
   }
