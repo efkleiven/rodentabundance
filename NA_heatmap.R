@@ -32,6 +32,7 @@ cam_weekly <- cam_function %>%
             .groups = "drop")
 
 cam_weekly
+save(cam_weekly, file="missing_data.rda")
 
 # get one date per t
 t_labels <- cam_weekly %>%
