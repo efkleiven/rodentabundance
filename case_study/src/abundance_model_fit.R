@@ -180,32 +180,33 @@ if(POOLING == "none") {
 # Here we can add a background color gradient depending on the number of cameras
 # functioning within the block 
 
-scaling <- max(cmr_data$cmr_estimate) / max(RN_abundances$med)
+scaling1 <- max(cmr_data$cmr_estimate) / max(RN_abundances$med)
+scaling2 <- mean(cmr_data$cmr_estimate) / mean(CT_abundances$vole_count)
   
 p1 <- ggplot(RN_abundances)+
-  geom_point(data = cmr_data, aes(x = date, y = cmr_estimate/scaling)) +
-  geom_line(data = cmr_data, aes(x = date, y = cmr_estimate/scaling)) +
+  geom_point(data = cmr_data, aes(x = date, y = cmr_estimate/scaling1)) +
+  geom_line(data = cmr_data, aes(x = date, y = cmr_estimate/scaling1)) +
   geom_line(aes(x=date, y = med, col = factor(block)), linewidth = 1, show.legend = F) +
   geom_ribbon(aes(x = date, ymin = inf, ymax = sup, fill = factor(block)),
               alpha = 0.50, show.legend = F)+
   scale_y_continuous(name = "RN estimate",
-                     sec.axis = sec_axis( transform=~.*scaling, name="CMR estimate"))+
+                     sec.axis = sec_axis( transform=~.*scaling1, name="CMR estimate"))+
   facet_wrap(~block)+
   theme_bw()
 
 p2 <- ggplot(CT_abundances)+
   geom_line(aes(x=date, y = vole_count), col = "blue")+
-  geom_point(data = cmr_data, aes(x = date, y = cmr_estimate))+
-  geom_line(data = cmr_data, aes(x = date, y = cmr_estimate))+
+  geom_point(data = cmr_data, aes(x = date, y = cmr_estimate/scaling2))+
+  geom_line(data = cmr_data, aes(x = date, y = cmr_estimate/scaling2))+
   scale_x_date(breaks = "6 months")+
   scale_y_continuous(name = "CT estimate",
-                     sec.axis = sec_axis( transform=~.*5, name="CMR estimate"))+
-  facet_wrap(~block)+
+                     sec.axis = sec_axis( transform=~.*scaling2, name="CMR estimate"))+
+  facet_wrap(~block, scale = "free_y")+
   theme_bw()
 
 (p1 | p2)
 
-ggsave("case_study/plots/CMR_vs_RN_vs_CT_byblock.png",  width = 29.7, height = 29.7, unit = "cm")
+ggsave("case_study/plots/CMR_vs_RN_vs_CT_noPooling.png",  width = 29.7, height = 21, unit = "cm")
 
 ### 8. Plot parameter values ---------------------------------------------------
 
