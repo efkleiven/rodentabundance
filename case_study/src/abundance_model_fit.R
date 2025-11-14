@@ -10,8 +10,8 @@ library(patchwork)
 rm(list = ls())
 
 # POOLING = "all"
-POOLING = "blocks"
-# POOLING = "none"
+# POOLING = "blocks"
+POOLING = "none"
 
 K = 5
 
@@ -44,7 +44,7 @@ if(POOLING == "none"){
 
 detHist <- ct_data %>%
   mutate(m = as.numeric(as.factor(site)),
-         season = ifelse(yday(date) < 274 & yday(date) > 152 , "spring", "winter")) %>% # spring between June 1st and October 1st
+         season = ifelse(yday(date) < 274 & yday(date) > 152 , "summer", "winter")) %>% # summer between June 1st and October 1st
   group_by(site) %>%
   mutate(year = (data.table::rleid(season) - 1) %/% 2) %>%
   filter(year < 6)
@@ -177,14 +177,19 @@ if(POOLING == "none") {
 
 ## d. plot
 
+# Here we can add a background color gradient depending on the number of cameras
+# functioning within the block 
+
+scaling <- max(cmr_data$cmr_estimate) / max(RN_abundances$med)
+  
 p1 <- ggplot(RN_abundances)+
-  geom_point(data = cmr_data, aes(x = date, y = cmr_estimate/3)) +
-  geom_line(data = cmr_data, aes(x = date, y = cmr_estimate/3)) +
+  geom_point(data = cmr_data, aes(x = date, y = cmr_estimate/scaling)) +
+  geom_line(data = cmr_data, aes(x = date, y = cmr_estimate/scaling)) +
   geom_line(aes(x=date, y = med, col = factor(block)), linewidth = 1, show.legend = F) +
   geom_ribbon(aes(x = date, ymin = inf, ymax = sup, fill = factor(block)),
               alpha = 0.50, show.legend = F)+
   scale_y_continuous(name = "RN estimate",
-                     sec.axis = sec_axis( transform=~.*3, name="CMR estimate"))+
+                     sec.axis = sec_axis( transform=~.*scaling, name="CMR estimate"))+
   facet_wrap(~block)+
   theme_bw()
 
@@ -213,13 +218,33 @@ gamma <- exp(apply(beta_gamma, 2, function(x){x + mu[,1]}))
 omega <- invlogit(apply(beta_omega, 2, function(x){x + mu[,2]}))
 theta <- invlogit(mu[,3])
 
-colnames(gamma) <- c(2018:2023, "spring", "winter")
-colnames(omega) <- c(2018:2023, "spring", "winter")
+colnames(gamma) <- c(2018:2023, "summer", "winter")
+colnames(omega) <- c(2018:2023, "summer", "winter")
 
 par(mfrow = (c(2,2)))
-boxplot(gamma[,1:6], main = "gamma - year")
-boxplot(gamma[,7:8], main = "gamma - season")
-boxplot(omega[,1:6], main = "omega - year")
-boxplot(omega[,7:8], main = "omega - season")
+boxplot(gamma[,1:6], main = "gamma (recruitement) - year")
+boxplot(gamma[,7:8], main = "gamma (recruitement) - season")
+boxplot(omega[,1:6]**6, main = "omega (survival) - year")
+boxplot(omega[,7:8]**6, main = "omega (survival) - season")
 
-# ggsave("case_study/plots/estimates_byblock.png",  width = 29.7, height = 15, unit = "cm")
+# ggsave("case_study/plots/estimates_bycam.png",  width = 29.7, height = 15, unit = "cm")
+
+### 9. Check correlation -------------------------------------------------------
+
+dates_2 <- detHist %>% 
+  select(t, date) %>% 
+  distinct
+
+correlation_RN_CMR <- left_join(left_join(RN_abundances, dates_2),
+                                left_join(cmr_data, dates_2),
+                                by = c("t", "block")) %>%
+  filter(!is.na(cmr_estimate))
+
+ggplot(correlation_RN_CMR) + 
+  geom_point(aes(x = cmr_estimate, y = med, col = factor(block))) + 
+  geom_smooth(aes(x = cmr_estimate, y = med), method = "lm") + 
+  theme_bw()
+
+ggsave("case_study/plots/CMR_RN_correlation_bycam.png",  width = 15, height = 15, unit = "cm")
+
+cor.test(correlation_RN_CMR$cmr_estimate, correlation_RN_CMR$med)
